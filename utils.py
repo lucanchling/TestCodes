@@ -2,6 +2,7 @@ import numpy as np
 import json
 import glob
 import os
+import csv
 
 def search(path,*args):
     """
@@ -105,3 +106,311 @@ def GenDictLandmarks(data_dir):
                     DATA[patient][lm] = is_Landmarks[i]
 
     return DATA
+
+def ReadFCSV(filePath):
+    """
+    Read fiducial file ".fcsv" and return a liste of landmark dictionnary
+
+    Parameters
+    ----------
+    filePath
+     path of the .fcsv file 
+    """
+    Landmark_dic = {}
+    with open(filePath, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        for row in csv_reader:
+            if "#" not in row[0]:
+                landmark = {}
+                landmark["id"], landmark["x"], landmark["y"], landmark["z"], landmark["label"] = row[0], float(row[1]), float(row[2]), float(row[3]), row[11]
+                Landmark_dic[row[11]] = landmark
+    return Landmark_dic
+
+def SaveJsonFromFcsv(file_path,out_path,Corresp):
+    """
+    Save a .fcsv in a .json file
+
+    Parameters
+    ----------
+    file_path : path of the .fcsv file 
+    out_path : path of the .json file 
+    """
+    groupe_data = ReadFCSV(file_path)
+    # print(groupe_data)
+    new_groupe_data = ChangeNameBis(groupe_data,file_path,Corresp)
+    # print(new_groupe_data)
+    lm_lst = GenControlePoint(new_groupe_data)
+    WriteJson(lm_lst,out_path)
+
+def ChangeNameBis(data,file_path,Type):
+    dict = {
+        "Bilateral":{
+            'IF': 'IF',
+            'ANS' : 'ANS',
+            'UR6' : 'UR6MP',
+            'UL6' : 'UL6MP',
+            'UR1' : 'UR1O',
+            'UL1' : 'UL1O', 
+            'UR1A' : 'UR1R',
+            'UR2' : 'UR2O',
+            'UR2A' : 'UR2R',
+            'UR3' : 'UR3OI',
+            'UR3A' : 'UR3RI',
+            'UL1A' : 'UL1R',
+            'UL2' : 'UL2O',
+            'UL2A' : 'UL2R',
+            'UL3' : 'UL3OI',
+            'UL3A' : 'UL3RI',
+            'UR6_UL6' : 'Mid_UR6MP_UL6MP',
+            'UR1_UL1' : 'Mid_UR1O_UL1O',
+            },
+        "Left":{
+            'IF': 'IF',
+            'ANS' : 'ANS',
+            'UR6' : 'UR6MP',
+            'UL6' : 'UL6MP',
+            'UR1' : 'UR1O',
+            'UL1' : 'UL1O', 
+            'U1A' : 'UL1R',
+            'U2' : 'UL2O',
+            'U2A' : 'UL2R',
+            'U3' : 'UL3OI',
+            'U3A' : 'UL3RI',
+            'UR6_UL6' : 'Mid_UR6MP_UL6MP',
+            'UR1_UL1' : 'Mid_UR1O_UL1O',
+        },
+        "Right":{
+            'IF': 'IF',
+            'ANS' : 'ANS',
+            'UR6' : 'UR6MP',
+            'UL6' : 'UL6MP',
+            'UR1' : 'UR1O',
+            'UL1' : 'UL1O', 
+            'U1A' : 'UR1R',
+            'U2' : 'UR2O',
+            'U2A' : 'UR2R',
+            'U3' : 'UR3OI',
+            'U3A' : 'UR3RI',
+            'UR6_UL6' : 'Mid_UR6MP_UL6MP',
+            'UR1_UL1' : 'Mid_UR1O_UL1O',},
+
+    }
+
+    new_data = {}
+    for key, value in data.items():
+        try:
+            new_data[dict[Type][key]] = value
+        except:
+            continue
+            # print("KEY {} doesnt exist in {}".format(key,file_path))
+    return new_data
+
+def ChangeName(data,type_reg,file_path):
+    dict = {
+        "CB":
+        {
+            "MX-1": "A",
+            "MX-2": "ANS",
+            "MX-3": "PNS",
+            "CB-1": "Ba",
+            "CB-2": "S",
+            "CB-3": "N",
+            "MD-1": "B",
+            "MD-2": "Pog",
+            "MD-3": "Gn",
+            "MD-4": "Me",
+            "MD-5": "RGo",
+            "MD-6": "LGo",
+            "MD-7": "C2",
+            "MD-8": "RCo",
+            "MD-9": "LCo",
+            "MD-10": "Mid_Ba_S",
+        },
+        "MAND":
+        {
+            "1": "LR1O",
+            "2": "LR1R",
+            "3": "LR6MB",
+            "4": "LR6R",
+            "5": "LL6MB",
+            "6": "LL6R",
+            "7": "Me",
+            "8": "RGo",
+            "9": "LGo",
+            "10": "C2",
+            "11": "RCo",
+            "12": "LCo",
+            "13": "Mid_Ba_S",
+        },
+        "MAX":
+        {
+            "1": "UR1O",
+            "2": "UR1R",
+            "3": "UR6MB",
+            "4": "UR6R",
+            "5": "UL6MB",
+            "6": "UL6R",
+        },
+    }
+
+    new_data = {}
+    for key, value in data.items():
+        KEY = key.split('T1-')[-1].split('T2-')[-1].split('T1')[-1].split('T2')[-1]
+        try:
+            new_data[dict[type_reg][KEY]] = value
+        except:
+            print("KEY {} doesnt exist in {}".format(KEY,file_path))
+    return new_data
+
+
+def GenControlePoint(groupe_data):
+    lm_lst = []
+    false = False
+    true = True
+    id = 0
+    for landmark,data in groupe_data.items():
+        id+=1
+        controle_point = {
+            "id": str(id),
+            "label": landmark,
+            "description": "",
+            "associatedNodeID": "",
+            "position": [-data["x"], -data["y"], data["z"]],
+            "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            "selected": true,
+            "locked": true,
+            "visibility": true,
+            "positionStatus": "defined"
+        }
+        lm_lst.append(controle_point)
+
+    return lm_lst
+
+
+def ChangeName(data,type_reg,file_path):
+    dict = {
+        "CB":
+        {
+            "MX-1": "A",
+            "MX-2": "ANS",
+            "MX-3": "PNS",
+            "CB-1": "Ba",
+            "CB-2": "S",
+            "CB-3": "N",
+            "MD-1": "B",
+            "MD-2": "Pog",
+            "MD-3": "Gn",
+            "MD-4": "Me",
+            "MD-5": "RGo",
+            "MD-6": "LGo",
+            "MD-7": "C2",
+            "MD-8": "RCo",
+            "MD-9": "LCo",
+            "MD-10": "Mid_Ba_S",
+        },
+        "MAND":
+        {
+            "1": "LR1O",
+            "2": "LR1R",
+            "3": "LR6MB",
+            "4": "LR6R",
+            "5": "LL6MB",
+            "6": "LL6R",
+            "7": "Me",
+            "8": "RGo",
+            "9": "LGo",
+            "10": "C2",
+            "11": "RCo",
+            "12": "LCo",
+            "13": "Mid_Ba_S",
+        },
+        "MAX":
+        {
+            "1": "UR1O",
+            "2": "UR1R",
+            "3": "UR6MB",
+            "4": "UR6R",
+            "5": "UL6MB",
+            "6": "UL6R",
+        },
+    }
+
+    new_data = {}
+    for key, value in data.items():
+        KEY = key.split('T1-')[-1].split('T2-')[-1].split('T1')[-1].split('T2')[-1]
+        try:
+            new_data[dict[type_reg][KEY]] = value
+        except:
+            print("KEY {} doesnt exist in {}".format(KEY,file_path))
+    return new_data
+
+
+def GenControlePoint(groupe_data):
+    lm_lst = []
+    false = False
+    true = True
+    id = 0
+    for landmark,data in groupe_data.items():
+        id+=1
+        controle_point = {
+            "id": str(id),
+            "label": landmark,
+            "description": "",
+            "associatedNodeID": "",
+            "position": [data["x"], data["y"], data["z"]],
+            "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            "selected": true,
+            "locked": true,
+            "visibility": true,
+            "positionStatus": "defined"
+        }
+        lm_lst.append(controle_point)
+
+    return lm_lst
+    
+def WriteJson(lm_lst,out_path):
+    false = False
+    true = True
+    file = {
+    "@schema": "https://raw.githubusercontent.com/slicer/slicer/master/Modules/Loadable/Markups/Resources/Schema/markups-schema-v1.0.0.json#",
+    "markups": [
+        {
+            "type": "Fiducial",
+            "coordinateSystem": "LPS",
+            "locked": false,
+            "labelFormat": "%N-%d",
+            "controlPoints": lm_lst,
+            "measurements": [],
+            "display": {
+                "visibility": false,
+                "opacity": 1.0,
+                "color": [0.4, 1.0, 0.0],
+                "color": [0.5, 0.5, 0.5],
+                "selectedColor": [0.26666666666666669, 0.6745098039215687, 0.39215686274509806],
+                "propertiesLabelVisibility": false,
+                "pointLabelsVisibility": true,
+                "textScale": 2.0,
+                "glyphType": "Sphere3D",
+                "glyphScale": 2.0,
+                "glyphSize": 5.0,
+                "useGlyphScale": true,
+                "sliceProjection": false,
+                "sliceProjectionUseFiducialColor": true,
+                "sliceProjectionOutlinedBehindSlicePlane": false,
+                "sliceProjectionColor": [1.0, 1.0, 1.0],
+                "sliceProjectionOpacity": 0.6,
+                "lineThickness": 0.2,
+                "lineColorFadingStart": 1.0,
+                "lineColorFadingEnd": 10.0,
+                "lineColorFadingSaturation": 1.0,
+                "lineColorFadingHueOffset": 0.0,
+                "handlesInteractive": false,
+                "snapMode": "toVisibleSurface"
+            }
+        }
+    ]
+    }
+    with open(out_path, 'w', encoding='utf-8') as f:
+        json.dump(file, f, ensure_ascii=False, indent=4)
+
+    f.close
