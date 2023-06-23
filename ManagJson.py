@@ -192,8 +192,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # main(args)
-    # MergeJson(args.data_dir,args.extension)
+    MergeJson(args.data_dir,args.extension)
     # MergeJsonBis(args.data_dir,args.second_dir,args.out_dir,args.extension)
-    dict_rename = {"C2": "Mid_RGo_LGo",
-                   "Mid_Ba_S": "Mid_RCo_LCo"}
-    RenameLandmarksJson(args.data_dir,dict_rename)
+    # dict_rename = {"C2": "Mid_RGo_LGo",
+    #                "Mid_Ba_S": "Mid_RCo_LCo"}
+    # RenameLandmarksJson(args.data_dir,dict_rename)
