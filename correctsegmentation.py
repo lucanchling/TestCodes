@@ -25,20 +25,37 @@ def correctseg(files):
 
 if __name__ == "__main__":
     
-    data_dir = "/home/luciacev/Desktop/Luc_Anchling/TRAINING/LATESTCleft/data/Patients"
+    data_dir = "/home/luciacev/Desktop/Luc/Projects/TestCodes/TEST"
     # out_dir = "/home/lucia/Desktop/Luc/DATA/AMASSS/CorrectSeg/"
     
     # if not os.path.exists(out_dir):
     #     os.makedirs(out_dir)
 
-    files = search(data_dir,".nii.gz")[".nii.gz"]
+    # files = search(data_dir,".nii.gz")[".nii.gz"]
 
-    splits = np.array_split(files,mp.cpu_count())
+    # print()
+    im_path = "/home/luciacev/Downloads/TEST/1_scan.nii.gz"
+    seg_path = "/home/luciacev/Downloads/TEST/1_MD_seg.nii.gz"
 
-    processes = [mp.Process(target=correctseg, args=(split,)) for split in splits]
+    im = sitk.ReadImage(im_path)
+    seg = sitk.ReadImage(seg_path)
 
-    for p in processes:
-        p.start()
-    for p in processes:
-        p.join()
+    # select label 1
+    seg = sitk.GetArrayFromImage(seg)
+    seg = np.where(seg == 2,1,0)
+    seg = sitk.GetImageFromArray(seg)
+    # seg.SetOrigin(im.GetOrigin())
+    # seg.SetSpacing(im.GetSpacing())
+    seg.CopyInformation(im)
+
+    sitk.WriteImage(sitk.Mask(im,seg),"/home/luciacev/Downloads/TEST/1_masked.nii.gz")
+
+    # splits = np.array_split(files,mp.cpu_count())
+
+    # processes = [mp.Process(target=correctseg, args=(split,)) for split in splits]
+
+    # for p in processes:
+    #     p.start()
+    # for p in processes:
+    #     p.join()
         
