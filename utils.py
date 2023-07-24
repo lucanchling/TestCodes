@@ -2,8 +2,7 @@ import numpy as np
 import json
 import glob
 import os
-import csv
-
+import SimpleITK as sitk
 def search(path,*args):
     """
     Return a dictionary with args element as key and a list of file in path directory finishing by args extension for each key
@@ -65,6 +64,43 @@ def LoadOnlyLandmarks(ldmk_path, ldmk_list=None):
     
     return landmarks
 
+def applyTransformLandmarks(landmarks, transform):
+    """Apply a transform to a set of landmarks."""
+    copy = landmarks.copy()
+    for lm, pt in landmarks.items():
+        copy[lm] = transform.TransformPoint(pt)
+    return copy
+
+def ResampleImage(image, transform):
+    '''
+    Resample image using SimpleITK
+    
+    Parameters
+    ----------
+    image : SimpleITK.Image
+        Image to be resampled
+    target : SimpleITK.Image
+        Target image
+    transform : SimpleITK transform
+        Transform to be applied to the image.
+        
+    Returns
+    -------
+    SimpleITK image
+        Resampled image.
+    '''
+    # Create resampler
+    resampler = sitk.ResampleImageFilter()
+    resampler.SetReferenceImage(image)
+    resampler.SetInterpolator(sitk.sitkLinear)
+    resampler.SetDefaultPixelValue(0)
+    resampler.SetTransform(transform)
+
+    # Resample image
+    resampled_image = resampler.Execute(image)
+
+    return resampled_image
+
 def GenDictLandmarks(data_dir):
     DATA = {}
     GROUP_LABELS = {
@@ -106,6 +142,158 @@ def GenDictLandmarks(data_dir):
                     DATA[patient][lm] = is_Landmarks[i]
 
     return DATA
+
+def GetListNamesSegType(segmentationType):
+    dic = {'CB':['cb'],
+           'MAND':['mand','md'],
+           'MAX':['max','mx'],}
+    return dic[segmentationType]
+
+def GetListFiles(folder_path, file_extension):
+    """Return a list of files in folder_path finishing by file_extension"""
+    file_list = []
+    for extension_type in file_extension:
+        file_list += search(folder_path,file_extension)[extension_type]
+    return file_list
+
+def GetPatients(folder_path, time_point='T2', segmentationType=None):
+    """Return a dictionary with patient id as key"""
+    file_extension = ['.nii.gz','.nii','.nrrd','.nrrd.gz','.gipl','.gipl.gz']
+    json_extension = ['.json']
+    file_list = GetListFiles(folder_path, file_extension+json_extension)
+
+    patients = {}
+    
+    for file in file_list:
+        basename = os.path.basename(file)
+        patient = basename.split('_Scan')[0].split('_scan')[0].split('_Or')[0].split('_OR')[0].split('_MAND')[0].split('_MD')[0].split('_MAX')[0].split('_MX')[0].split('_CB')[0].split('_lm')[0].split('_T2')[0].split('_T1')[0].split('_Cl')[0].split('.')[0].split("_Cropped")[0]
+        
+        if patient not in patients:
+            patients[patient] = {}
+        
+        if True in [i in basename for i in file_extension]:
+            # if segmentationType+'MASK' in basename:
+            if True in [i in basename.lower() for i in ['mask','seg','pred']]:
+                if segmentationType is None:
+                    patients[patient]['seg'+time_point] = file
+                else:
+                    if True in [i in basename.lower() for i in GetListNamesSegType(segmentationType)]:
+                        patients[patient]['seg'+time_point] = file
+                
+            else:
+                patients[patient]['scan'+time_point] = file
+
+        if True in [i in basename for i in json_extension]:
+            if time_point == 'T2':
+                patients[patient]['lm'+time_point] = file
+
+    return patients
+
+def GetMatrixPatients(folder_path):
+    """Return a dictionary with patient id as key and matrix path as data"""
+    file_extension = ['.h5']
+    file_list = GetListFiles(folder_path, file_extension)
+
+    patients = {}
+    for file in file_list:
+        basename = os.path.basename(file)
+        patient = basename.split("_Cropped")[0]
+        if patient not in patients and True in [i in basename for i in file_extension]:
+            patients[patient] = {}
+            patients[patient]['mat'] = file  
+
+    return patients
+
+def GetDictPatients(folder_path, matrix_folder=None):
+    """Return a dictionary with patients for both time points"""
+    patients = GetPatients(folder_path)
+    # patients_t2 = GetPatients(folder_t2_path, time_point='T2', segmentationType=segmentationType)
+        
+    if matrix_folder is not None:
+        patient_matrix = GetMatrixPatients(matrix_folder)
+        patients = MergeDicts(patients,patient_matrix)
+    return patients
+
+def MergeDicts(dict1,dict2):
+    """Merge t1 and t2 dictionaries for each patient"""
+    patients = {}
+    for patient in dict1:
+        patients[patient] = dict1[patient]
+        try:
+            patients[patient].update(dict2[patient])
+        except KeyError:
+            continue
+    return patients
+
+def GenControlePoint(landmarks):
+    lm_lst = []
+    false = False
+    true = True
+    id = 0
+    for landmark,data in landmarks.items():
+        id+=1
+        controle_point = {
+            "id": str(id),
+            "label": landmark,
+            "description": "",
+            "associatedNodeID": "",
+            "position": [data[0], data[1], data[2]],
+            "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            "selected": true,
+            "locked": true,
+            "visibility": true,
+            "positionStatus": "defined"
+        }
+        lm_lst.append(controle_point)
+
+    return lm_lst
+
+def WriteJson(landmarks,out_path):
+    false = False
+    true = True
+    file = {
+    "@schema": "https://raw.githubusercontent.com/slicer/slicer/master/Modules/Loadable/Markups/Resources/Schema/markups-schema-v1.0.0.json#",
+    "markups": [
+        {
+            "type": "Fiducial",
+            "coordinateSystem": "LPS",
+            "locked": false,
+            "labelFormat": "%N-%d",
+            "controlPoints": GenControlePoint(landmarks),
+            "measurements": [],
+            "display": {
+                "visibility": false,
+                "opacity": 1.0,
+                "color": [0.4, 1.0, 0.0],
+                "color": [0.5, 0.5, 0.5],
+                "selectedColor": [0.26666666666666669, 0.6745098039215687, 0.39215686274509806],
+                "propertiesLabelVisibility": false,
+                "pointLabelsVisibility": true,
+                "textScale": 2.0,
+                "glyphType": "Sphere3D",
+                "glyphScale": 2.0,
+                "glyphSize": 5.0,
+                "useGlyphScale": true,
+                "sliceProjection": false,
+                "sliceProjectionUseFiducialColor": true,
+                "sliceProjectionOutlinedBehindSlicePlane": false,
+                "sliceProjectionColor": [1.0, 1.0, 1.0],
+                "sliceProjectionOpacity": 0.6,
+                "lineThickness": 0.2,
+                "lineColorFadingStart": 1.0,
+                "lineColorFadingEnd": 10.0,
+                "lineColorFadingSaturation": 1.0,
+                "lineColorFadingHueOffset": 0.0,
+                "handlesInteractive": false,
+                "snapMode": "toVisibleSurface"
+            }
+        }
+    ]
+    }
+    with open(out_path, 'w', encoding='utf-8') as f:
+        json.dump(file, f, ensure_ascii=False, indent=4)
+
+    f.close
 
 def ReadFCSV(filePath):
     """
@@ -344,73 +532,3 @@ def ChangeName(data,type_reg,file_path):
             print("KEY {} doesnt exist in {}".format(KEY,file_path))
     return new_data
 
-
-def GenControlePoint(groupe_data):
-    lm_lst = []
-    false = False
-    true = True
-    id = 0
-    for landmark,data in groupe_data.items():
-        id+=1
-        controle_point = {
-            "id": str(id),
-            "label": landmark,
-            "description": "",
-            "associatedNodeID": "",
-            "position": [data["x"], data["y"], data["z"]],
-            "orientation": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-            "selected": true,
-            "locked": true,
-            "visibility": true,
-            "positionStatus": "defined"
-        }
-        lm_lst.append(controle_point)
-
-    return lm_lst
-    
-def WriteJson(lm_lst,out_path):
-    false = False
-    true = True
-    file = {
-    "@schema": "https://raw.githubusercontent.com/slicer/slicer/master/Modules/Loadable/Markups/Resources/Schema/markups-schema-v1.0.0.json#",
-    "markups": [
-        {
-            "type": "Fiducial",
-            "coordinateSystem": "LPS",
-            "locked": false,
-            "labelFormat": "%N-%d",
-            "controlPoints": lm_lst,
-            "measurements": [],
-            "display": {
-                "visibility": false,
-                "opacity": 1.0,
-                "color": [0.4, 1.0, 0.0],
-                "color": [0.5, 0.5, 0.5],
-                "selectedColor": [0.26666666666666669, 0.6745098039215687, 0.39215686274509806],
-                "propertiesLabelVisibility": false,
-                "pointLabelsVisibility": true,
-                "textScale": 2.0,
-                "glyphType": "Sphere3D",
-                "glyphScale": 2.0,
-                "glyphSize": 5.0,
-                "useGlyphScale": true,
-                "sliceProjection": false,
-                "sliceProjectionUseFiducialColor": true,
-                "sliceProjectionOutlinedBehindSlicePlane": false,
-                "sliceProjectionColor": [1.0, 1.0, 1.0],
-                "sliceProjectionOpacity": 0.6,
-                "lineThickness": 0.2,
-                "lineColorFadingStart": 1.0,
-                "lineColorFadingEnd": 10.0,
-                "lineColorFadingSaturation": 1.0,
-                "lineColorFadingHueOffset": 0.0,
-                "handlesInteractive": false,
-                "snapMode": "toVisibleSurface"
-            }
-        }
-    ]
-    }
-    with open(out_path, 'w', encoding='utf-8') as f:
-        json.dump(file, f, ensure_ascii=False, indent=4)
-
-    f.close
