@@ -1,6 +1,6 @@
 import os
 from utils import SaveJsonFromFcsv, search
-from ManagJson import MergeJson
+from ManageJson import MergeJson
 import pandas as pd
 import numpy as np
 
