@@ -1,6 +1,6 @@
 import SimpleITK as sitk
 import numpy as np
-from dcmconvert import search
+from DCMConvert import search
 import os
 import multiprocessing as mp
 
