@@ -2,6 +2,7 @@
 ## Different Codes with use
 
 - **ApplyMatrix.py**: To apply matrix to scans and json
+- **CenterCBCT.py**: To center CBCT scans
 - **ConvertFCSV.py**: To convert a list of FCSV markups into JSON format (by also changing the name of the landmarks)
 - **CorrectSegmentation.py**: To correct the segmentation of the scans for AMASSS Training (if different labels)
 - **CreateVTK.py**: To create VTK files from the segmentation files 
