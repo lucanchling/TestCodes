@@ -1,8 +1,7 @@
 import numpy as np
-import json
-import glob
-import os
 import SimpleITK as sitk
+import json, glob, os, time
+
 def search(path,*args):
     """
     Return a dictionary with args element as key and a list of file in path directory finishing by args extension for each key
@@ -532,3 +531,7 @@ def ChangeName(data,type_reg,file_path):
             print("KEY {} doesnt exist in {}".format(KEY,file_path))
     return new_data
 
+def CheckSharedList(shared_list,maxvalue):
+    while True:
+        time.sleep(1)
+        print("{} / {} Done".format(sum(shared_list),maxvalue))
