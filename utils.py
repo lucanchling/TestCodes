@@ -1,6 +1,7 @@
 import numpy as np
 import SimpleITK as sitk
 import json, glob, os, time
+from tqdm import tqdm
 
 def search(path,*args):
     """
@@ -190,13 +191,13 @@ def GetPatients(folder_path, time_point='T2', segmentationType=None):
 
 def GetMatrixPatients(folder_path):
     """Return a dictionary with patient id as key and matrix path as data"""
-    file_extension = ['.h5']
+    file_extension = ['.h5','.tfm','.mat']
     file_list = GetListFiles(folder_path, file_extension)
 
     patients = {}
     for file in file_list:
         basename = os.path.basename(file)
-        patient = basename.split("_Cropped")[0]
+        patient = basename.split("_T1_Left")[0]
         if patient not in patients and True in [i in basename for i in file_extension]:
             patients[patient] = {}
             patients[patient]['mat'] = file  
@@ -532,6 +533,7 @@ def ChangeName(data,type_reg,file_path):
     return new_data
 
 def CheckSharedList(shared_list,maxvalue):
-    while True:
-        time.sleep(1)
-        print("{} / {} Done".format(sum(shared_list),maxvalue))
+    for i in tqdm(range(maxvalue)):
+        while sum(shared_list) < i+1:
+            time.sleep(1)
+        # print("{} / {} Done".format(sum(shared_list),maxvalue))
